@@ -1,3 +1,9 @@
+3.0.1-pl
+==============
+- Исправлены имена сниппетов в сборщике (убран ошибочный префикс si).
+- Добавлены недостающие сниппеты: Identification, requiredIf, checkPassLength, passwordConfirm, userNotExists, userExists.
+- Сниппеты сделаны статичными.
+
 3.0.0-pl
 ==============
 - Требуется MODX 3.0+ и PHP 8.1+.

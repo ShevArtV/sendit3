@@ -4,7 +4,7 @@ return [
     'name' => 'SendIt',
     'name_lower' => 'sendit',
     'name_short' => 'si',
-    'version' => '3.0.0',
+    'version' => '3.0.1',
     'release' => 'pl',
     'php_version' => '8.1',
 
@@ -23,7 +23,7 @@ return [
 
     'static' => [
         'chunks' => false,
-        'snippets' => false,
+        'snippets' => true,
         'plugins' => false,
     ],
 
