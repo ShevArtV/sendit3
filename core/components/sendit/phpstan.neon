@@ -1,0 +1,32 @@
+parameters:
+    level: 5
+    paths:
+        - src
+        - elements
+        - cron
+    scanDirectories:
+        - ../../src/Revolution
+        - ../../vendor/xpdo/xpdo/src
+    bootstrapFiles:
+        - ../../vendor/autoload.php
+        - vendor/autoload.php
+        - phpstan-stubs.php
+    excludePaths:
+        - model/sendit/mysql/*.map.inc.php
+        - model/sendit/metadata.mysql.php
+    phpVersion: 80200
+    treatPhpDocTypesAsCertain: false
+    reportUnmatchedIgnoredErrors: false
+    ignoreErrors:
+        - '#Variable \$modx might not be defined#'
+        - '#Variable \$scriptProperties might not be defined#'
+        - '#Variable \$(hook|validator|key|value|param|fields) might not be defined#'
+        # MODX API принимает string как $options (default value), это валидный вызов
+        - '#Parameter \#2 \$options of method xPDO\\xPDO::getOption\(\) expects array\|null, string given#'
+        # MODX API принимает string для className
+        - '#Parameter \#1 \$className of method xPDO\\xPDO::(getObject|getIterator|getCollection|newObject|getCount)\(\) expects class-string.*, string given#'
+        # Типичные паттерны в legacy-коде MODX: json_decode(_, 1) вместо true, print_r(_, 1) вместо true
+        - '#Parameter \#2 \$associative of function json_decode expects bool\|null, int given#'
+        - '#Parameter \#2 \$return of function print_r expects bool, int given#'
+        # MODX log() и regClientScript() принимают int/true в legacy-коде
+        - '#Parameter \#2 \$(msg|plaintext) of method (xPDO\\xPDO::log|MODX\\Revolution\\modX::regClientScript)\(\) expects (string|bool), (true|int) given#'

@@ -1,0 +1,26 @@
+{
+  "name": "shevartv/sendit3",
+  "description": "SendIt - компонент для отправки запросов на сервер.",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Shevchenko Arthur",
+      "homepage": "https://modx.pro/users/shev_art_v"
+    }
+  ],
+  "autoload": {
+    "psr-4": {
+      "SendIt\\": "src/"
+    }
+  },
+  "config": {
+    "platform": {
+      "php": "8.2"
+    }
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true,
+  "require-dev": {
+    "phpstan/phpstan": "^2.1"
+  }
+}

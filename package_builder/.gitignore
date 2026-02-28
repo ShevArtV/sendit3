@@ -1,0 +1,7 @@
+/vendor/
+/composer.lock
+/composer.phar
+/user.config.json
+*.bak
+.DS_Store
+
