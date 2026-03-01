@@ -32,7 +32,7 @@ switch ($modx->event->name) {
         }
 
         $modx->lexicon->load('sendit:default');
-        $jsConfigPath = $modx->getOption('si_js_config_path', '', './sendit.inc.js');
+        $jsConfigPath = $modx->getOption('si_js_config_path', '', '../configs/modules.inc.js');
         $cookies = !empty($_COOKIE['SendIt']) ? json_decode($_COOKIE['SendIt'], true) : [];
 
         $data = [

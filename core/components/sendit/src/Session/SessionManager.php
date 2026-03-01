@@ -99,8 +99,8 @@ class SessionManager
     public function clear(string $className = 'SendIt'): void
     {
         $assetsPath = $this->modx->getOption('assets_path', null, '');
-        $uploaddir = $this->modx->getOption('si_uploaddir', '', '[[+asseetsUrl]]components/sendit/uploaded_files/');
-        $uploaddir = str_replace('[[+asseetsUrl]]', $assetsPath, $uploaddir);
+        $uploaddir = $this->modx->getOption('si_uploaddir', '', '[[+assetsUrl]]components/sendit/uploaded_files/');
+        $uploaddir = str_replace('[[+assetsUrl]]', $assetsPath, $uploaddir);
         $storageTime = $this->modx->getOption('si_storage_time', '', 86400);
         $max = date('Y-m-d H:i:s', time() - $storageTime);
 

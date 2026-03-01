@@ -75,8 +75,8 @@ class SendIt
         $unsetParamsList = $this->modx->getOption('si_unset_params', '', 'emailTo,extends');
         $this->unsetParamsList = explode(',', $unsetParamsList);
 
-        $uploaddir = $this->modx->getOption('si_uploaddir', '', '[[+asseetsUrl]]components/sendit/uploaded_files/');
-        $this->uploaddir = str_replace('[[+asseetsUrl]]', $this->assetsPath, $uploaddir);
+        $uploaddir = $this->modx->getOption('si_uploaddir', '', '[[+assetsUrl]]components/sendit/uploaded_files/');
+        $this->uploaddir = str_replace('[[+assetsUrl]]', $this->assetsPath, $uploaddir);
 
         $pathToPresets = $this->modx->getOption('si_path_to_presets', '', 'components/sendit/presets/sendit.inc.php');
         $this->presetKey = str_replace('.inc.php', '', basename($pathToPresets));

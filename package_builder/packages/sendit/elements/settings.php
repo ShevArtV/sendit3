@@ -12,7 +12,7 @@ return [
         'area' => 'session',
     ],
     'si_js_config_path' => [
-        'value' => './sendit.inc.js',
+        'value' => '../configs/modules.inc.js',
         'xtype' => 'textfield',
         'area' => 'frontend',
     ],
