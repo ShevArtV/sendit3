@@ -1,3 +1,8 @@
+3.0.2-pl
+==============
+- Исправлено значение по умолчанию si_js_config_path (./sendit.inc.js → ../configs/modules.inc.js).
+- Исправлена опечатка asseetsUrl → assetsUrl в si_uploaddir (SendIt.php, SessionManager.php).
+
 3.0.1-pl
 ==============
 - Исправлены имена сниппетов в сборщике (убран ошибочный префикс si).
