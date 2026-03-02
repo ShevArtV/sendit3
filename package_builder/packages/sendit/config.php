@@ -4,9 +4,11 @@ return [
     'name' => 'SendIt',
     'name_lower' => 'sendit',
     'name_short' => 'si',
-    'version' => '3.0.3',
+    'version' => '3.1.0',
     'release' => 'pl',
     'php_version' => '8.1',
+
+    'resolvers_path' => 'package_builder/packages/sendit/resolvers/',
 
     'paths' => [
         'core' => 'core/components/sendit/',

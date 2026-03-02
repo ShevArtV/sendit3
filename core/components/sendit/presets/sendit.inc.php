@@ -4,8 +4,13 @@ return [
     'default' => [
         'validate' => 'phone:required,age:required,name:required,email:email:required,politics:checkbox:required',
         'fieldNames' => 'age==Возраст,name==Имя,phone==Телефон,email==Почта',
+        'usePoW' => 1,
+        'powDifficulty' => 18,
+        'useBehaviorSign' => 1,
+        'minFillTime' => 3,
     ],
     'simpleform' => [
+        'extends' => 'default',
         'validate' => 'email:email:required,name:required,politics:checkbox:required',
     ],
     'search_something' => [
@@ -50,11 +55,19 @@ return [
         'clearFieldsOnSuccess' => 0,
         'hooks' => 'FormItSaveForm,email',
         'fieldNames' => 'phone==Телефон,name==Имя',
+        'usePoW' => 1,
+        'powDifficulty' => 18,
+        'useBehaviorSign' => 1,
+        'minFillTime' => 3,
     ],
     'register' => [
         'hooks' => 'Identification,FormItSaveForm,FormItAutoResponder',
         'method' => 'register',
         'successMessage' => 'Вы успешно зарегистрированы. Подтвердите email для активации учётной записи.',
+        'usePoW' => 1,
+        'powDifficulty' => 18,
+        'useBehaviorSign' => 1,
+        'minFillTime' => 3,
 
         'fiarSubject' => 'Активация пользователя',
         'fiarFrom' => 'email@domain.ru',

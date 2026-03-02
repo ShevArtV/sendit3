@@ -35,15 +35,23 @@ switch ($modx->event->name) {
         $jsConfigPath = $modx->getOption('si_js_config_path', '', '../configs/modules.inc.js');
         $cookies = !empty($_COOKIE['SendIt']) ? json_decode($_COOKIE['SendIt'], true) : [];
 
+        $powChallenge = bin2hex(random_bytes(16));
+        $behaviorKey = bin2hex(random_bytes(16));
+
         $data = [
             'simsgantispam' => $modx->lexicon('si_msg_trusted_err'),
             'sitoken' => md5($_SERVER['REMOTE_ADDR'] . time()),
             'sitrusted' => '0',
             'sijsconfigpath' => $jsConfigPath,
+            'sipowchallenge' => $powChallenge,
+            'sibehaviorkey' => $behaviorKey,
         ];
         $sessionManager->set([
             'sitoken' => $data['sitoken'],
             'sendingLimits' => [],
+            'powChallenge' => $powChallenge,
+            'powTimestamp' => time(),
+            'behaviorKey' => $behaviorKey,
         ]);
 
         $data = array_merge($cookies, $data);

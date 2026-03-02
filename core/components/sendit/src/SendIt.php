@@ -36,6 +36,8 @@ class SendIt
     public array $webConfig = [];
     /** @var mixed Значение после санитизации (доступно для senditOnSetValue) */
     public mixed $newValue = null;
+    public ?string $newPowChallenge = null;
+    public ?string $newBehaviorKey = null;
 
     private SessionManager $sessionManager;
     private Response $responseHelper;
@@ -73,7 +75,10 @@ class SendIt
         $this->roundPrecision = (int)$this->modx->getOption('si_precision', '', 2);
 
         $unsetParamsList = $this->modx->getOption('si_unset_params', '', 'emailTo,extends');
-        $this->unsetParamsList = explode(',', $unsetParamsList);
+        $this->unsetParamsList = array_merge(
+            explode(',', $unsetParamsList),
+            ['_pow_nonce', '_behavior_signature', 'isBot', 'usePoW', 'powDifficulty', 'useBehaviorSign', 'maxBotScore', 'minFillTime']
+        );
 
         $uploaddir = $this->modx->getOption('si_uploaddir', '', '[[+assetsUrl]]components/sendit/uploaded_files/');
         $this->uploaddir = str_replace('[[+assetsUrl]]', $this->assetsPath, $uploaddir);
@@ -92,8 +97,9 @@ class SendIt
             $this->modx->log(\modX::LOG_LEVEL_ERROR, 'Путь к пресетам не задан или задан не корректно!');
         }
 
+        $filePreset = $this->presets[$this->presetKey][$this->presetName] ?? [];
         $sessionPreset = $this->session['presets'][$this->presetName] ?? [];
-        $this->preset = array_merge($this->presets[$this->presetKey][$this->presetName] ?? [], $sessionPreset);
+        $this->preset = array_merge($filePreset, $sessionPreset);
 
         $this->pluginParams = [];
         $this->presetManager->fireFormParamsEvent($this->formName, $this->presetName, $this);
@@ -191,18 +197,49 @@ class SendIt
     public function getWebConfig(): void
     {
         $scriptsVersion = '?v=' . $this->getVersion($this->basePath . 'assets/components/sendit/js/web/');
+        $protectionMap = $this->buildProtectionMap();
 
         $this->webConfig = [
             'version' => $scriptsVersion,
             'actionUrl' => '/assets/components/sendit/action.php',
             'modulesConfigPath' => $this->jsConfigPath,
             'cookieName' => 'SendIt',
+            'protectionMap' => $protectionMap,
         ];
 
         $this->modx->invokeEvent('senditOnGetWebConfig', [
             'webConfig' => $this->webConfig,
             'object' => $this,
         ]);
+    }
+
+    private function buildProtectionMap(): array
+    {
+        $protectionMap = [];
+        $sessionPresets = $this->session['presets'] ?? [];
+
+        foreach ($this->presets as $presetFile => $presetList) {
+            if (!is_array($presetList)) continue;
+            foreach ($presetList as $presetName => $preset) {
+                if (!is_array($preset)) continue;
+                $merged = $this->presetManager->resolvePreset(
+                    $preset,
+                    $sessionPresets[$presetName] ?? [],
+                    $this->presets
+                );
+                $hasPow = !empty($merged['usePoW']);
+                $hasSign = !empty($merged['useBehaviorSign']);
+                if ($hasPow || $hasSign) {
+                    $protectionMap[$presetName] = [
+                        'pow' => $hasPow,
+                        'sign' => $hasSign,
+                        'powDifficulty' => (int)($merged['powDifficulty'] ?? 18),
+                    ];
+                }
+            }
+        }
+        $this->modx->log(1, print_r($protectionMap, 1));
+        return $protectionMap;
     }
 
     /**
@@ -238,13 +275,143 @@ class SendIt
      */
     public function process()
     {
-        return $this->formProcessor->process([
+        $originalPowChallenge = $this->session['powChallenge'] ?? '';
+
+        if (!empty($this->params['usePoW'])) {
+            $powResult = $this->verifyProofOfWork();
+            if (!$powResult['success']) {
+                return $powResult;
+            }
+        }
+
+        if (!empty($this->params['useBehaviorSign'])) {
+            $behaviorResult = $this->verifyBehaviorSignature($originalPowChallenge);
+            if (!$behaviorResult['success']) {
+                return $behaviorResult;
+            }
+        }
+
+        $result = $this->formProcessor->process([
             'params' => $this->params,
             'hooks' => $this->hooks,
             'session' => $this->session,
             'formName' => $this->formName,
             'sendIt' => $this,
         ]);
+
+        if (is_array($result)) {
+            if (!empty($this->newPowChallenge)) {
+                $result['data']['_newPowChallenge'] = $this->newPowChallenge;
+            }
+            if (!empty($this->newBehaviorKey)) {
+                $result['data']['_newBehaviorKey'] = $this->newBehaviorKey;
+            }
+        }
+
+        return $result;
+    }
+
+    private function verifyProofOfWork(): array
+    {
+        $nonce = $_POST['_pow_nonce'] ?? '';
+        $challenge = $this->session['powChallenge'] ?? '';
+        $difficulty = (int)($this->params['powDifficulty'] ?? 18);
+
+        if (!$nonce || !$challenge) {
+            return $this->error('si_msg_pow_err');
+        }
+
+        $challengeBytes = hex2bin($challenge);
+        $hash = hash('sha256', $challengeBytes . $nonce, true);
+
+        $zeroBits = 0;
+        for ($i = 0; $i < strlen($hash); $i++) {
+            $byte = ord($hash[$i]);
+            if ($byte === 0) {
+                $zeroBits += 8;
+            } else {
+                for ($bit = 7; $bit >= 0; $bit--) {
+                    if (($byte >> $bit) & 1) break;
+                    $zeroBits++;
+                }
+                break;
+            }
+        }
+
+        if ($zeroBits < $difficulty) {
+            return $this->error('si_msg_pow_err');
+        }
+
+        $newChallenge = bin2hex(random_bytes(16));
+        $this->sessionManager->set([
+            'powChallenge' => $newChallenge,
+            'powTimestamp' => time(),
+        ]);
+        $this->newPowChallenge = $newChallenge;
+
+        return $this->success();
+    }
+
+    private function verifyBehaviorSignature(string $originalPowChallenge = ''): array
+    {
+        $signature = $_POST['_behavior_signature'] ?? '';
+        $key = $this->session['behaviorKey'] ?? '';
+
+        if (!$signature || !$key) {
+            return $this->error('si_msg_behavior_err');
+        }
+
+        $raw = hex2bin($signature);
+        if ($raw === false || strlen($raw) < 28) {
+            return $this->error('si_msg_behavior_err');
+        }
+
+        $iv = substr($raw, 0, 12);
+        $tag = substr($raw, -16);
+        $ciphertext = substr($raw, 12, -16);
+        $keyBin = hex2bin($key);
+
+        $decrypted = openssl_decrypt($ciphertext, 'aes-128-gcm', $keyBin, OPENSSL_RAW_DATA, $iv, $tag);
+        if ($decrypted === false) {
+            return $this->error('si_msg_behavior_err');
+        }
+
+        $data = json_decode($decrypted, true);
+        if (!is_array($data)) {
+            return $this->error('si_msg_behavior_err');
+        }
+
+        if (!empty($data['isBot'])) {
+            return $this->error('si_msg_trusted_err');
+        }
+
+        $maxScore = (int)($this->params['maxBotScore'] ?? 50);
+        if (isset($data['score']) && (int)$data['score'] > $maxScore) {
+            return $this->error('si_msg_trusted_err');
+        }
+
+        $sessionChallenge = $originalPowChallenge ?: ($this->session['powChallenge'] ?? '');
+        if (!empty($sessionChallenge) && (!isset($data['powChallenge']) || $data['powChallenge'] !== $sessionChallenge)) {
+            return $this->error('si_msg_behavior_err');
+        }
+
+        $minFillTime = (int)($this->params['minFillTime'] ?? 3) * 1000;
+        $formFillTimes = $data['formFillTimes'] ?? [];
+        if (!empty($this->formName) && isset($formFillTimes[$this->formName])) {
+            if ((int)$formFillTimes[$this->formName] < $minFillTime) {
+                return $this->error('si_msg_behavior_err');
+            }
+        } elseif (!empty($this->formName) && empty($formFillTimes[$this->formName])) {
+            return $this->error('si_msg_behavior_err');
+        }
+
+        $newKey = bin2hex(random_bytes(16));
+        $this->sessionManager->set([
+            'behaviorKey' => $newKey,
+        ]);
+        $this->newBehaviorKey = $newKey;
+
+        return $this->success();
     }
 
     public function paginationHandler(): array

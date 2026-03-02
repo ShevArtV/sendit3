@@ -71,6 +71,24 @@ class PresetManager
     }
 
     /**
+     * Мержит файловый пресет с сессионным и резолвит extends-цепочку.
+     *
+     * @param array $filePreset
+     * @param array $sessionPreset
+     * @param array $allPresets
+     * @return array
+     */
+    public function resolvePreset(array $filePreset, array $sessionPreset, array $allPresets): array
+    {
+        $merged = array_merge($filePreset, $sessionPreset);
+        if (!empty($merged['extends'])) {
+            $extendsData = $this->resolveExtends($merged['extends'], [], $allPresets);
+            $merged = array_merge($extendsData, $merged);
+        }
+        return $merged;
+    }
+
+    /**
      * @param array $config
      * @return array
      */
