@@ -1,10 +1,10 @@
 <?php
-
+// /usr/local/php/php-8.2/bin/php -d display_errors -d error_reporting=E_ALL package_builder/cli.php build sendit
 return [
     'name' => 'SendIt',
     'name_lower' => 'sendit',
     'name_short' => 'si',
-    'version' => '3.1.0',
+    'version' => '3.1.1',
     'release' => 'pl',
     'php_version' => '8.1',
 

@@ -238,7 +238,7 @@ class SendIt
                 }
             }
         }
-        $this->modx->log(1, print_r($protectionMap, 1));
+
         return $protectionMap;
     }
 
