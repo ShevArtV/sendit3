@@ -1,3 +1,12 @@
+3.1.2-pl
+==============
+- FIX: Устранены предупреждения PHP "Undefined array key" при обращении к необъявленным ключам массивов:
+  - валидаторы requiredIf, passwordConfirm (необъявленные ключи $_POST);
+  - валидаторы userExists, userNotExists (необъявленный ключ в карте префиксов при нестандартном параметре);
+  - ValidationManager::setFieldsAliases (пара fieldNames без разделителя ==);
+  - SessionManager::generateId ($_SERVER['HTTP_USER_AGENT']/REMOTE_ADDR в CLI/scheduler-контексте).
+- BUILD: Из транспортного пакета исключены dev-артефакты, ранее ошибочно попадавшие в сборку: ~1400 файлов фронтенд-node_modules, phpstan.phar (~26 МБ), composer.phar, composer-temp и phpstan-stubs.php. Размер пакета уменьшен с ~11 МБ до ~0.2 МБ.
+
 3.1.1-pl
 ==============
 - FIX: Переименован модуль UserBehaviorTracker → SessionLogger и cookie `siubt` → `sisl` из-за блокировки корпоративными прокси/DLP по имени файла (ошибка 499).

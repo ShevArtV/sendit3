@@ -15,7 +15,7 @@ $prefixes = [
     'phone' => 'Profile.',
     'mobilephone' => 'Profile.',
 ];
-$keyName = $prefixes[$param] . $param;
+$keyName = ($prefixes[$param] ?? '') . $param;
 $q = $modx->newQuery(\MODX\Revolution\modUser::class);
 $q->leftJoin(\MODX\Revolution\modUserProfile::class, 'Profile');
 $q->select($modx->getSelectColumns(\MODX\Revolution\modUser::class, 'modUser', '', ['id']));

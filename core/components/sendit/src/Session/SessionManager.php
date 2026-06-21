@@ -123,7 +123,7 @@ class SessionManager
     public function generateId(): string
     {
         if ($this->modx->getOption('si_use_custom_session_id', '', false)) {
-            return md5($_SERVER['REMOTE_ADDR'] . $_SERVER['HTTP_USER_AGENT'] . time());
+            return md5(($_SERVER['REMOTE_ADDR'] ?? '') . ($_SERVER['HTTP_USER_AGENT'] ?? '') . time());
         }
 
         return session_id();

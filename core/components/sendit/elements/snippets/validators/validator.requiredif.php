@@ -11,7 +11,7 @@
 $param = explode('|', $param);
 $msg = $validator->formit->config[$key . '.vTextRequiredIf'] ?? 'Это поле обязательно для заполнения';
 
-if ($_POST[$param[0]] == $param[1] && !$value) {
+if (($_POST[$param[0]] ?? null) == ($param[1] ?? null) && !$value) {
     $validator->addError($key, $msg);
 }
 return true;

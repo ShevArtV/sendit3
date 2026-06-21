@@ -128,6 +128,9 @@ class ValidationManager
         $result = [];
         foreach ($fields as $field) {
             $f = explode('==', trim($field));
+            if (!isset($f[1])) {
+                continue;
+            }
             $result[$f[0]] = $f[1];
         }
 
