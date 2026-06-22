@@ -1,10 +1,12 @@
 <?php
-// /usr/local/php/php-8.2/bin/php -d display_errors -d error_reporting=E_ALL package_builder/cli.php build sendit
+// Сборка через глобальный shevartv/modx-builder (флаг --no-dev стрипает dev-vendor и восстанавливает после билда):
+//   cd <project> && modxapp build sendit --no-dev
+// Локальная копия package_builder/ (src, cli.php) — устаревший форк без --no-dev, в репозитории не отслеживается; не использовать.
 return [
     'name' => 'SendIt',
     'name_lower' => 'sendit',
     'name_short' => 'si',
-    'version' => '3.1.2',
+    'version' => '3.1.3',
     'release' => 'pl',
     'php_version' => '8.1',
 

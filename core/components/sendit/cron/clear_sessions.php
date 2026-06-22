@@ -4,7 +4,7 @@
  * Executed by sFileTask — MODX is already available in scope.
  *
  * @var \modX $modx
- * @var sFileTask $task
+ * @var object $task
  * @var array $scriptProperties
  */
 
