@@ -292,6 +292,10 @@ class Identification
             $extended = !empty($this->values['extended']) ? str_replace('&quot;', '"', $this->values['extended']) : '';
             $extended = $extended ? json_decode($extended, true) : [];
             $this->values['extended'] = array_merge($profileExtended, $extended);
+            // пароль сменили вручную — гасим ещё живую ссылку восстановления, иначе она откатит пароль
+            if (!empty($this->values['password'])) {
+                unset($this->values['extended']['activate_pass_before'], $this->values['extended']['temp_password']);
+            }
             $this->values['dob'] = !empty($this->values['dob']) ? strtotime($this->values['dob']) : $profile->get('dob');
             $userData = $user->toArray();
             unset($userData['password'], $userData['cachepwd']);
@@ -464,19 +468,28 @@ class Identification
         $password = $extended['temp_password'] ?? '';
         $activateBefore = $extended['activate_pass_before'] ?? 0;
 
-        unset($extended['activate_pass_before'], $extended['temp_password']);
-        $profile->set('extended', $extended);
-        $profile->save();
-
+        // срок ссылки истёк: временный пароль больше не нужен, чистим профиль
         if ($activateBefore - time() <= 0) {
+            if (isset($extended['activate_pass_before']) || isset($extended['temp_password'])) {
+                unset($extended['activate_pass_before'], $extended['temp_password']);
+                $profile->set('extended', $extended);
+                $profile->save();
+            }
             return [];
         }
 
-        if ($password) {
-            $user->set('password', $password);
-            $user->save();
+        if (!$password) {
+            return [];
         }
 
+        $user->set('password', $password);
+        // пароль не сохранён (например, событие OnUserBeforeSave) — ссылку не гасим, переход можно повторить
+        if (!$user->save()) {
+            return [];
+        }
+
+        // временный пароль остаётся в профиле до истечения срока ссылки:
+        // повторный переход (предпросмотр письма, антивирус почты) выставит тот же пароль
         $userData = array_merge($profile->toArray(), $user->toArray());
 
         if ($toPls && $userData) {

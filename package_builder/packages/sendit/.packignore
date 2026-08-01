@@ -1,0 +1,4 @@
+composer.lock
+phpstan-stubs.php
+composer.phar
+composer-temp/
