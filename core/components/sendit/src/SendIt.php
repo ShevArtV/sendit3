@@ -54,6 +54,8 @@ class SendIt
     public string $pathToPresets;
     public string $presetKey;
     private array $unsetParamsList;
+    /** @var array<string, bool> */
+    private array $sqlInjectionFields = [];
 
     public function __construct(\modX $modx, string $presetName = '', string $formName = '')
     {
@@ -275,6 +277,10 @@ class SendIt
      */
     public function process()
     {
+        if ($this->hasSqlInjection()) {
+            return $this->error('si_msg_sql_injection_err');
+        }
+
         $originalPowChallenge = $this->session['powChallenge'] ?? '';
 
         if (!empty($this->params['usePoW'])) {
@@ -488,6 +494,16 @@ class SendIt
     public function error(string $message = '', array $data = [], array $placeholders = []): array
     {
         return $this->responseHelper->error($message, $data, $placeholders);
+    }
+
+    public function markSqlInjection(string $field): void
+    {
+        $this->sqlInjectionFields[$field] = true;
+    }
+
+    public function hasSqlInjection(): bool
+    {
+        return !empty($this->sqlInjectionFields);
     }
 
     /**

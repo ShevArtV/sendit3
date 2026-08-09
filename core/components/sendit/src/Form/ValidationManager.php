@@ -205,6 +205,9 @@ class ValidationManager
         }
 
         if (!is_array($value)) {
+            if (Sanitizer::isSqlInjection($value)) {
+                $sendIt->markSqlInjection($key);
+            }
             $sendIt->newValue = Sanitizer::process($value);
 
             $this->modx->invokeEvent('senditOnSetValue', [

@@ -6,7 +6,7 @@ return [
     'name' => 'SendIt',
     'name_lower' => 'sendit',
     'name_short' => 'si',
-    'version' => '3.1.4',
+    'version' => '3.1.5',
     'release' => 'pl',
     'php_version' => '8.1',
 
