@@ -47,7 +47,7 @@ switch ($action) {
         break;
 
     case 'removeFile':
-        $path = MODX_BASE_PATH . ($_POST['path'] ?? '');
+        $path = (string)($_POST['path'] ?? '');
         $nomsg = (bool)($_POST['nomsg'] ?? false);
         $res = $sendit->removeFile($path, $nomsg);
         break;
