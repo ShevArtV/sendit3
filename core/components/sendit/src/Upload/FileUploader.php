@@ -14,6 +14,7 @@ class FileUploader
     private \modX $modx;
     private Response $response;
     private SessionManager $sessionManager;
+    private FileName $fileName;
     private int $roundPrecision;
 
     /**
@@ -26,6 +27,7 @@ class FileUploader
         $this->modx = $modx;
         $this->response = $response;
         $this->sessionManager = $sessionManager;
+        $this->fileName = new FileName($modx);
         $this->roundPrecision = (int)$modx->getOption('si_precision', '', 2);
     }
 
@@ -39,7 +41,7 @@ class FileUploader
         $totalCount = $config['totalCount'] ?? 0;
         $params = $config['params'];
         $session = $config['session'];
-        $uploaddir = $config['uploaddir'] . ($session['session_id'] ?? '') . '/';
+        $uploaddir = PathGuard::sessionDirectory($config['uploaddir'], $session);
         $basePath = $config['basePath'];
 
         $this->modx->invokeEvent('OnBeforeFileValidate', [
@@ -52,7 +54,13 @@ class FileUploader
 
         $totalCount = $this->modx->event->returnedValues['totalCount'] ?? $totalCount;
 
-        $allowExt = !empty($params['allowExt']) ? explode(',', $params['allowExt']) : [];
+        if ($uploaddir === '') {
+            return $this->response->error('si_msg_file_remove_session_err', [], ['filename' => '']);
+        }
+
+        $allowExt = !empty($params['allowExt'])
+            ? array_map(static fn ($ext) => strtolower(trim($ext)), explode(',', $params['allowExt']))
+            : [];
         $maxSize = !empty($params['maxSize']) ? (float)$params['maxSize'] * 1024 * 1024 : 1024 * 1024;
         $maxCount = !empty($params['maxCount']) ? (int)$params['maxCount'] : 1;
 
@@ -60,9 +68,11 @@ class FileUploader
         $data = [
             'fileNames' => [],
             'errors' => [],
+            'names' => [],
             'portion' => !empty($params['portion']) ? $params['portion'] : 0.1,
             'threadsQuantity' => !empty($params['threadsQuantity']) ? $params['threadsQuantity'] : 1,
         ];
+        $validated = [];
 
         if ($maxCount < ($totalCount + count($filesData))) {
             $left = $maxCount - $totalCount;
@@ -85,26 +95,36 @@ class FileUploader
 
         foreach ($filesData as $filename => $filesize) {
             $data['aliases'][$filename] = $filename;
-            [$nameWithoutExt, $fileExt] = $this->getFileParts($filename);
-            $dir = $uploaddir . $nameWithoutExt . '/';
-
-            if ($status === 'error') {
+            $safeName = $this->fileName->sanitize(
+                (string)$filename,
+                $uploaddir,
+                (string)($config['formName'] ?? ''),
+                (string)($config['presetName'] ?? ''),
+                $config['sendIt']
+            );
+            $target = $safeName !== '' ? PathGuard::resolve($uploaddir, $safeName) : '';
+            if ($safeName === '' || $target === '') {
+                $data['errors'][$filename] = $this->modx->lexicon('si_msg_file_name_err', ['filename' => $filename]);
                 $data['fileNames'][] = $filename;
+                $status = 'error';
+                continue;
+            }
+            $data['names'][$filename] = $safeName;
+            [$nameWithoutExt, $fileExt] = FileName::split($safeName);
+            $dir = PathGuard::resolve($uploaddir, $nameWithoutExt . '/');
+
+            if (is_file($target)) {
+                $data['loaded'][$filename] = $baseUploadUrl . $session['session_id'] . '/' . $safeName;
             }
 
-            if (file_exists($uploaddir . $filename)) {
-                $data['loaded'][$filename] = $baseUploadUrl . ($session['session_id'] ?? '') . '/' . $filename;
-                $status = 'success';
-            }
-
-            $uploadedSize = $session['uploadedSize'][$filename] ?? 0;
-            if (file_exists($dir) && $uploadedSize) {
+            $uploadedSize = $session['uploadedSize'][$safeName] ?? 0;
+            if ($dir !== '' && is_dir($dir) && $uploadedSize) {
                 $percent = $this->getPercent($uploadedSize, $filesize);
                 if ($percent < 100 && $percent > 0) {
                     $chunks = scandir($dir);
                     unset($chunks[0], $chunks[1]);
-                    $msg = $this->getLoadingMsg($percent, $uploadedSize, $filesize, $filename, $params);
-                    $data['start'][$filename] = [
+                    $msg = $this->getLoadingMsg($percent, $uploadedSize, $filesize, $safeName, $params);
+                    $data['start'][$safeName] = [
                         'percent' => "{$percent}%",
                         'bytes' => $uploadedSize,
                         'chunks' => implode(',', $chunks),
@@ -113,17 +133,36 @@ class FileUploader
                 }
             }
 
+            $isValid = true;
             if ($maxSize <= $filesize) {
                 $data['errors'][$filename] = ($data['errors'][$filename] ?? '') . $this->modx->lexicon('si_msg_file_size_err');
                 $data['fileNames'][] = $filename;
                 $status = 'error';
+                $isValid = false;
             }
 
-            if (!in_array($fileExt, $allowExt)) {
+            if (!in_array(strtolower($fileExt), $allowExt, true)) {
                 $data['errors'][$filename] = ($data['errors'][$filename] ?? '') . $this->modx->lexicon('si_msg_file_extention_err');
                 $data['fileNames'][] = $filename;
                 $status = 'error';
+                $isValid = false;
             }
+
+            if ($isValid) {
+                $validated[$safeName] = [
+                    'client' => (string)$filename,
+                    'size' => (int)$filesize,
+                    'ext' => strtolower($fileExt),
+                    'preset' => (string)($config['presetName'] ?? ''),
+                    'portion' => (float)$data['portion'],
+                    'maxSize' => (int)$maxSize,
+                ];
+            }
+        }
+
+        if ($validated) {
+            $uploadFiles = array_merge($session['uploadFiles'] ?? [], $validated);
+            $this->sessionManager->set(['uploadFiles' => $uploadFiles]);
         }
 
         $data['fileNames'] = array_unique($data['fileNames']);
@@ -142,74 +181,117 @@ class FileUploader
     {
         $content = $config['content'];
         $headers = $config['headers'];
-        $params = $config['params'];
         $session = $config['session'];
-        $uploaddir = $config['uploaddir'] . ($session['session_id'] ?? '') . '/';
+        $uploaddir = PathGuard::sessionDirectory($config['uploaddir'], $session);
         $basePath = $config['basePath'];
+        $requestedName = (string)($headers['x-content-name'] ?? '');
+        $displayName = basename(str_replace('\\', '/', $requestedName));
+        [$safeName, $file] = $this->findValidatedFile($requestedName, $session);
+        if (!$file || (string)($file['preset'] ?? '') !== (string)($config['presetName'] ?? '')) {
+            return $this->response->error('si_msg_file_not_validated_err', [], ['filename' => $displayName]);
+        }
 
-        $filename = $uploaddir . $headers['x-content-name'];
+        $chunkId = $headers['x-chunk-id'] ?? null;
+        $totalLength = $headers['x-total-length'] ?? null;
+        if (!is_numeric($chunkId) || (int)$chunkId < 0 || !is_numeric($totalLength) || (int)$totalLength <= 0) {
+            return $this->response->error('si_msg_file_upload_params_err', [], ['filename' => $displayName]);
+        }
+        $chunkId = (int)$chunkId;
+        $totalLength = (int)$totalLength;
+        $portion = max(1, (int)round((float)($file['portion'] ?? 0.1) * 1024 * 1024));
+        $expectedSize = (int)($file['size'] ?? 0);
+        $maxSize = (int)($file['maxSize'] ?? 0);
+        $expectedChunks = (int)ceil($expectedSize / $portion);
+        if ($totalLength !== $expectedSize || ($maxSize > 0 && $totalLength >= $maxSize)
+            || strlen($content) > $portion || $chunkId >= $expectedChunks) {
+            return $this->response->error('si_msg_file_upload_params_err', [], ['filename' => $displayName]);
+        }
+
+        [, $extension] = FileName::split($safeName);
+        if (strtolower($extension) !== (string)($file['ext'] ?? '')) {
+            return $this->response->error('si_msg_file_not_validated_err', [], ['filename' => $displayName]);
+        }
+
+        $filename = $uploaddir !== '' ? PathGuard::resolve($uploaddir, $safeName) : '';
+        if ($filename === '') {
+            return $this->response->error('si_msg_file_name_err', [], ['filename' => $displayName]);
+        }
 
         if (!is_dir($uploaddir)) {
             mkdir($uploaddir, 0777, true);
         }
 
         $baseUploadUrl = str_replace($basePath, '', $config['uploaddir']);
+        $relativePath = $baseUploadUrl . $session['session_id'] . '/' . $safeName;
 
-        if (file_exists($filename)) {
+        if (is_file($filename) && filesize($filename) === $expectedSize) {
             return $this->response->success($this->modx->lexicon('si_msg_loading', [
-                'filename' => $headers['x-content-name'],
+                'filename' => $displayName,
                 'percent' => 100,
             ]), [
-                'path' => $baseUploadUrl . ($session['session_id'] ?? '') . '/' . $headers['x-content-name'],
+                'path' => $relativePath,
                 'percent' => '100%',
-                'filename' => $headers['x-content-name'],
-                'chunkId' => $headers['x-chunk-id'],
+                'filename' => $safeName,
+                'savedName' => $safeName,
+                'chunkId' => $chunkId,
             ]);
         }
 
-        [$nameWithoutExt, $fileExt] = $this->getFileParts($headers['x-content-name']);
-
-        $dir = $uploaddir . $nameWithoutExt . '/';
-        $chunkName = $headers['x-chunk-id'] . '.' . $fileExt;
+        [$nameWithoutExt, $fileExt] = FileName::split($safeName);
+        $dir = PathGuard::resolve($uploaddir, $nameWithoutExt . '/');
+        if ($dir === '') {
+            return $this->response->error('si_msg_file_name_err', [], ['filename' => $displayName]);
+        }
+        $dir .= '/';
+        $chunkName = $fileExt !== '' ? $chunkId . '.' . $fileExt : (string)$chunkId;
         $chunkPath = $dir . $chunkName;
 
         if (!is_dir($dir)) {
             mkdir($dir, 0777, true);
         }
 
-        if (!file_exists($chunkPath) || filesize($chunkPath) < $headers['content-length']) {
+        if (!file_exists($chunkPath) || filesize($chunkPath) < strlen($content)) {
             file_put_contents($chunkPath, $content);
         }
 
-        $portion = $params['portion'] * 1024 * 1024;
-        $countChunks = count(scandir($dir)) - 2;
-        $uploadedSize = $countChunks * $portion;
-
-        if ($uploadedSize > $headers['x-total-length']) {
-            $uploadedSize = $headers['x-total-length'];
+        $uploadedSize = 0;
+        foreach (scandir($dir) ?: [] as $chunk) {
+            if ($chunk !== '.' && $chunk !== '..' && is_file($dir . $chunk)) {
+                $uploadedSize += (int)filesize($dir . $chunk);
+            }
         }
+        $this->sessionManager->set(['uploadedSize' => array_merge(
+            $session['uploadedSize'] ?? [],
+            [$safeName => min($uploadedSize, $totalLength)]
+        )]);
 
-        $percent = $this->getPercent($uploadedSize, $headers['x-total-length']);
-        $msg = $this->getLoadingMsg($percent, $uploadedSize, $headers['x-total-length'], $headers['x-content-name'], $params);
+        $percent = $this->getPercent(min($uploadedSize, $totalLength), $totalLength);
+        $msg = $this->getLoadingMsg($percent, min($uploadedSize, $totalLength), $totalLength, $displayName, $config['params']);
 
-        if ($uploadedSize < $headers['x-total-length']) {
+        if ($uploadedSize < $totalLength) {
             return $this->response->success($msg, [
                 'percent' => "{$percent}%",
-                'bytes' => $session['uploadedSize'][$headers['x-content-name']] ?? 0,
-                'filename' => $headers['x-content-name'],
-                'chunkId' => $headers['x-chunk-id'],
+                'bytes' => $uploadedSize,
+                'filename' => $safeName,
+                'savedName' => $safeName,
+                'chunkId' => $chunkId,
             ]);
         }
 
         $this->assembleFile($filename, $dir, $fileExt);
+        if (!is_file($filename) || filesize($filename) !== $expectedSize) {
+            @unlink($filename);
+            return $this->response->error('si_msg_file_upload_params_err', [], ['filename' => $displayName]);
+        }
 
         FileSystem::removeDir($dir, $this->modx);
 
         return $this->response->success($msg, [
-            'path' => $baseUploadUrl . ($session['session_id'] ?? '') . '/' . $headers['x-content-name'],
+            'path' => $relativePath,
             'percent' => "{$percent}%",
-            'filename' => $headers['x-content-name'],
-            'chunkId' => $headers['x-chunk-id'],
+            'filename' => $safeName,
+            'savedName' => $safeName,
+            'chunkId' => $chunkId,
         ]);
     }
 
@@ -225,49 +307,73 @@ class FileUploader
         $basePath = $config['basePath'];
         $forceRemove = $config['forceRemove'] ?? false;
 
-        $filename = basename($path);
-        $dir = str_replace($filename, '', $path);
-
-        $this->modx->invokeEvent('OnBeforeFileRemove', [
-            'path' => $path,
-            'SendIt' => $config['sendIt'] ?? null,
-        ]);
-
-        if (!str_contains($path, $session['session_id'] ?? '') && !$forceRemove) {
+        $filename = basename(str_replace('\\', '/', $path));
+        $uploaddir = PathGuard::sessionDirectory($config['uploaddir'], $session);
+        if ($uploaddir === '' && !$forceRemove) {
             return $this->response->error('si_msg_file_remove_session_err', [], ['filename' => $filename]);
         }
 
+        if ($forceRemove) {
+            $target = $path;
+            $chunkDir = dirname($path);
+            $responseName = $filename;
+        } else {
+            $relative = PathGuard::relativeFromRequest($path, $uploaddir, $basePath);
+            $target = $relative !== '' ? PathGuard::resolve($uploaddir, $relative) : '';
+            if ($target === '') {
+                return $this->response->error('si_msg_file_remove_session_err', [], ['filename' => $filename]);
+            }
+            [$nameWithoutExt] = FileName::split($relative);
+            $chunkDir = $nameWithoutExt !== '' ? PathGuard::resolve($uploaddir, $nameWithoutExt . '/') : '';
+            $responseName = $relative;
+        }
+
+        $this->modx->invokeEvent('OnBeforeFileRemove', [
+            'path' => $target,
+            'SendIt' => $config['sendIt'] ?? null,
+        ]);
+
         $uploadedSize = $session['uploadedSize'] ?? [];
         unset($uploadedSize[$filename]);
-        $this->sessionManager->set(['uploadedSize' => $uploadedSize]);
+        $uploadFiles = $session['uploadFiles'] ?? [];
+        [$safeName] = $this->findValidatedFile($relative ?? $filename, $session);
+        if ($safeName !== '') {
+            unset($uploadFiles[$safeName], $uploadedSize[$safeName]);
+        }
+        $this->sessionManager->set(['uploadedSize' => $uploadedSize, 'uploadFiles' => $uploadFiles]);
 
-        if (file_exists($path)) {
-            unlink($path);
-        } elseif (file_exists($dir)) {
-            FileSystem::removeDir($dir, $this->modx);
+        if (is_file($target)) {
+            unlink($target);
+        } elseif ($chunkDir !== '' && is_dir($chunkDir)) {
+            FileSystem::removeDir($chunkDir, $this->modx);
         }
 
         $msg = $nomsg ? '' : 'si_msg_file_remove_success';
 
         return $this->response->success($msg, [
-            'filename' => $filename,
+            'filename' => $responseName,
             'path' => str_replace($basePath, '', $path),
             'nomsg' => $nomsg,
         ]);
     }
 
-    /**
-     * @param string $filename
-     * @return array{0: string, 1: string}
-     */
-    private function getFileParts(string $filename): array
+    /** @return array{0:string,1:array} */
+    private function findValidatedFile(string $name, array $session): array
     {
-        $nameParts = explode('.', $filename);
-        $lastIndex = count($nameParts) - 1;
-        $fileExt = $nameParts[$lastIndex];
-        unset($nameParts[$lastIndex]);
+        if ($name === '') {
+            return ['', []];
+        }
+        $files = $session['uploadFiles'] ?? [];
+        if (isset($files[$name]) && is_array($files[$name])) {
+            return [$name, $files[$name]];
+        }
+        foreach ($files as $safeName => $file) {
+            if (is_array($file) && (string)($file['client'] ?? '') === $name) {
+                return [(string)$safeName, $file];
+            }
+        }
 
-        return [implode('.', $nameParts), $fileExt];
+        return ['', []];
     }
 
     /**
@@ -357,8 +463,8 @@ class FileUploader
     private function assembleFile(string $filename, string $dir, string $fileExt): void
     {
         $i = 0;
-        while (file_exists($dir . $i . '.' . $fileExt)) {
-            $name = $dir . $i . '.' . $fileExt;
+        while (file_exists($dir . ($fileExt !== '' ? $i . '.' . $fileExt : (string)$i))) {
+            $name = $dir . ($fileExt !== '' ? $i . '.' . $fileExt : (string)$i);
             $mode = !file_exists($filename) ? 'wb' : 'ab';
             $fout = fopen($filename, $mode);
             $fin = fopen($name, 'rb');

@@ -465,6 +465,7 @@ class SendIt
             'session' => $this->session,
             'uploaddir' => $this->uploaddir,
             'basePath' => $this->basePath,
+            'presetName' => $this->presetName,
         ]);
     }
 
@@ -480,6 +481,7 @@ class SendIt
             'nomsg' => $nomsg,
             'session' => $this->session,
             'basePath' => $this->basePath,
+            'uploaddir' => $this->uploaddir,
             'forceRemove' => $this->forceRemove,
             'sendIt' => $this,
         ]);

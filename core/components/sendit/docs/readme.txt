@@ -6,6 +6,14 @@ Author: Shevchenko Artur <shev.art.v@yandex.ru>
 
 SendIt - компонент для работы с формами на сайте.
 
+Событие siOnSanitizeFileName
+--------------------------------
+Вызывается на validate_files до приёма чанков. Параметры: name (оригинал), sanitized
+(имя по правилам пакета), extension, directory, context=upload, formName, presetName, SendIt.
+Проект может вернуть имя через $modx->event->returnedValues['name'], в том числе с
+относительным подкаталогом. Ответ всегда повторно фильтруется: traversal срезается,
+исполняемые расширения обезвреживаются, итоговый путь остаётся в каталоге сессии.
+
 !!!ВАЖНО!!! При установке компонент так же будут установлены pdoTools и FormIt.
 
 Возможности:

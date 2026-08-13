@@ -6,7 +6,7 @@ return [
     'name' => 'SendIt',
     'name_lower' => 'sendit',
     'name_short' => 'si',
-    'version' => '3.1.5',
+    'version' => '3.1.6',
     'release' => 'pl',
     'php_version' => '8.1',
 
@@ -23,6 +23,7 @@ return [
         'chunks' => 'elements/chunks.php',
         'plugins' => 'elements/plugins.php',
         'settings' => 'elements/settings.php',
+        'events' => 'elements/events.php',
     ],
 
     'static' => [
@@ -39,6 +40,7 @@ return [
             'snippets' => true,
             'plugins' => true,
             'settings' => false,
+            'events' => true,
         ],
     ],
 ];

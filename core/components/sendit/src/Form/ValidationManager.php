@@ -8,6 +8,7 @@
 namespace SendIt\Form;
 
 use SendIt\Security\Sanitizer;
+use SendIt\Upload\PathGuard;
 
 class ValidationManager
 {
@@ -164,9 +165,17 @@ class ValidationManager
             'size' => [],
         ];
 
+        $sessionDirectory = PathGuard::sessionDirectory($uploaddir, $session);
+        if ($sessionDirectory === '') {
+            return;
+        }
+
         foreach ($fileList as $path) {
-            $fullpath = $uploaddir . ($session['session_id'] ?? '') . '/' . $path;
-            $_FILES[$fieldKey]['name'][] = basename($path);
+            $fullpath = PathGuard::resolve($sessionDirectory, str_replace('\\', '/', trim((string)$path)));
+            if ($fullpath === '' || !is_file($fullpath)) {
+                continue;
+            }
+            $_FILES[$fieldKey]['name'][] = basename($fullpath);
             $_FILES[$fieldKey]['type'][] = filetype($fullpath);
             $_FILES[$fieldKey]['tmp_name'][] = $fullpath;
             $_FILES[$fieldKey]['error'][] = 0;
