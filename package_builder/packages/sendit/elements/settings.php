@@ -6,6 +6,16 @@ return [
         'xtype' => 'textfield',
         'area' => 'session',
     ],
+    'si_token_ttl' => [
+        'value' => '900',
+        'xtype' => 'textfield',
+        'area' => 'session',
+    ],
+    'si_token_grace' => [
+        'value' => '60',
+        'xtype' => 'textfield',
+        'area' => 'session',
+    ],
     'si_use_custom_session_id' => [
         'value' => '',
         'xtype' => 'combo-boolean',

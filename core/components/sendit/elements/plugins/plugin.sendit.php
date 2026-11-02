@@ -5,6 +5,7 @@
 
 use SendIt\SendIt;
 use SendIt\Session\SessionManager;
+use SendIt\Session\TokenTtl;
 
 $corePath = $modx->getOption('core_path', null, MODX_CORE_PATH);
 require_once $corePath . 'components/sendit/vendor/autoload.php';
@@ -37,22 +38,24 @@ switch ($modx->event->name) {
 
         $powChallenge = bin2hex(random_bytes(16));
         $behaviorKey = bin2hex(random_bytes(16));
+        // Токен живёт si_token_ttl, а не одну страницу: новый на каждой странице ломал фоновые
+        // запросы, отправленные одновременно с другой загрузкой страницы той же сессии.
+        $token = TokenTtl::issue($modx, $sessionManager->get());
 
         $data = [
             'simsgantispam' => $modx->lexicon('si_msg_trusted_err'),
-            'sitoken' => md5($_SERVER['REMOTE_ADDR'] . time()),
+            'sitoken' => $token['sitoken'],
             'sitrusted' => '0',
             'sijsconfigpath' => $jsConfigPath,
             'sipowchallenge' => $powChallenge,
             'sibehaviorkey' => $behaviorKey,
         ];
-        $sessionManager->set([
-            'sitoken' => $data['sitoken'],
+        $sessionManager->set(array_merge($token, [
             'sendingLimits' => [],
             'powChallenge' => $powChallenge,
             'powTimestamp' => time(),
             'behaviorKey' => $behaviorKey,
-        ]);
+        ]));
 
         $data = array_merge($cookies, $data);
         setcookie('SendIt', json_encode($data), 0, '/');

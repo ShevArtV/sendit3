@@ -5,6 +5,7 @@
 
 use SendIt\SendIt;
 use SendIt\Session\SessionManager;
+use SendIt\Session\TokenTtl;
 
 define('MODX_API_MODE', true);
 require_once dirname(__FILE__, 4) . '/index.php';
@@ -24,7 +25,7 @@ $sendit = new SendIt($modx, (string)$preset, (string)$formName);
 $sessionManager = new SessionManager($modx);
 $session = $sessionManager->get();
 
-if (!isset($session['sitoken']) || !$token || $token !== $session['sitoken']) {
+if (!TokenTtl::isValid($modx, $session, (string)$token)) {
     die(json_encode($sendit->error('si_msg_token_err')));
 }
 
